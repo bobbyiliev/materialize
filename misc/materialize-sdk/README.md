@@ -18,7 +18,7 @@ This directory is its own Cargo workspace, outside the Materialize workspace.
 ```
 cd misc/materialize-sdk
 cargo test
-cargo clippy --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 The Rust package's integration tests need a running Materialize. The nightly
@@ -44,8 +44,11 @@ Then run the tests from `misc/materialize-sdk`, skipping the restart phases:
 ```
 MATERIALIZE_URL="host=localhost port=6875 user=materialize" \
 MATERIALIZE_SYSTEM_URL="host=localhost port=6877 user=mz_system" \
-cargo test --tests -- --ignored --skip before_a_restart --skip after_a_restart
+cargo test -p materialize-sdk --tests -- --ignored --skip before_a_restart --skip after_a_restart
 ```
+
+The turbopuffer sink's live tests also need `TURBOPUFFER_API_KEY`, and run with
+`cargo test -p materialize-sdk-turbopuffer -- --include-ignored`.
 
 `bin/fmt` formats it with the rest of the repository.
 
@@ -85,7 +88,8 @@ npm test
 
 wasm-bindgen generates the binding's TypeScript declarations, and the build
 type-checks the package against them. The live tests run when
-`MATERIALIZE_URL` is set.
+`MATERIALIZE_URL` is set, as a URL such as
+`postgres://materialize@localhost:6875/materialize`, which node-postgres needs.
 
 ## Try it
 
@@ -129,5 +133,6 @@ cargo run --example search -- search "a cat on a windowsill"
 
 Changes to the source show up in searches within seconds, deletes included.
 Stop the sink and start it again, and it resumes from its checkpoint without
-embedding everything again. The namespaces are named after `NAME`, and the
+embedding everything again, while the source's history outlasts the stop, as
+with the Postgres sink above. The namespaces are named after `NAME`, and the
 example's docs list its other settings.
