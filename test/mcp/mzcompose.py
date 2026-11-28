@@ -248,7 +248,7 @@ def workflow_endpoints(c: Composition) -> None:
         assert r.status_code == 200
         body = r.json()
         assert "error" in body
-        assert "non-system tables" in body["error"]["message"]
+        assert "non-system objects" in body["error"]["message"]
 
     with c.test_case("developer_reject_multi_statement"):
         r = post_mcp(
@@ -282,7 +282,7 @@ def workflow_endpoints(c: Composition) -> None:
         assert r.status_code == 200
         body = r.json()
         assert "error" in body
-        assert "non-system tables" in body["error"]["message"]
+        assert "non-system objects" in body["error"]["message"]
 
     with c.test_case("developer_reject_mixed_tables"):
         r = post_mcp(
@@ -301,7 +301,7 @@ def workflow_endpoints(c: Composition) -> None:
         assert r.status_code == 200
         body = r.json()
         assert "error" in body
-        assert "non-system tables" in body["error"]["message"]
+        assert "non-system objects" in body["error"]["message"]
 
     with c.test_case("developer_reject_empty_query"):
         r = post_mcp(

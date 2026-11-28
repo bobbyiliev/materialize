@@ -6608,6 +6608,9 @@ fn test_mcp_developer_schema_shadowing() {
             16,
             "EXPLAIN OPTIMIZED PLAN FOR VIEW information_schema.info_leak",
         ),
+        (20, "SHOW VIEWS FROM information_schema"),
+        (21, "SHOW VIEWS FROM materialize.information_schema"),
+        (22, "SHOW OBJECTS FROM information_schema"),
     ] {
         let body = query(id, sql);
         let message = body["error"]["message"].as_str().unwrap_or_default();

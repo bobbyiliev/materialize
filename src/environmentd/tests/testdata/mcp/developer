@@ -80,7 +80,7 @@ mcp-developer
 {"jsonrpc":"2.0","id":15,"result":{"content":[{"type":"text","text":"[\n  [\"materialize\"]\n]"}],"isError":false}}
 
 # =============================================================================
-# query_system_catalog - non-system tables rejected
+# query_system_catalog - non-system objects rejected
 # =============================================================================
 
 # Querying a non-system table should be rejected.
@@ -88,35 +88,35 @@ mcp-developer
 {"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM user_table"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":20,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: user_table. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":20,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: user_table. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # Querying a non-system schema should be rejected.
 mcp-developer
 {"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM public.my_view"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":21,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: public.my_view. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":21,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: public.my_view. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # A user table behind TABLE should be rejected.
 mcp-developer
 {"jsonrpc":"2.0","id":26,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT name FROM mz_catalog.mz_databases UNION ALL TABLE public.my_view"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":26,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: public.my_view. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":26,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: public.my_view. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # A CTE only shadows unqualified names, so public.my_view is still checked.
 mcp-developer
 {"jsonrpc":"2.0","id":27,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"WITH my_view AS (SELECT 1) SELECT * FROM public.my_view, mz_catalog.mz_databases"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":27,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: public.my_view. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":27,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: public.my_view. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # An ID-form name resolves by ID, so its name proves nothing.
 mcp-developer
 {"jsonrpc":"2.0","id":28,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM [u1 AS mz_catalog.mz_databases]"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":28,"error":{"code":-32602,"message":"Query validation failed: Query references objects by ID: [u1 AS mz_catalog.mz_databases]. Reference system catalog tables by name.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":28,"error":{"code":-32602,"message":"Query validation failed: Query references objects by ID: [u1 AS mz_catalog.mz_databases]. Reference system catalog objects by name.","data":{"error_type":"ValidationError"}}}
 
 # =============================================================================
 # query_system_catalog - DDL rejected
@@ -282,14 +282,14 @@ mcp-developer
 {"jsonrpc":"2.0","id":53,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM mz_catalogg.fake_table"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":53,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: mz_catalogg.fake_table. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":53,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: mz_catalogg.fake_table. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # Mixed system and user tables in JOIN should be rejected.
 mcp-developer
 {"jsonrpc":"2.0","id":54,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM mz_tables t JOIN public.user_data u ON t.id = u.table_id"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":54,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: public.user_data. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":54,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: public.user_data. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # =============================================================================
 # HTTP method enforcement and Origin validation
@@ -318,7 +318,7 @@ mcp-developer
 {"jsonrpc":"2.0","id":61,"method":"tools/call","params":{"name":"query_system_catalog","arguments":{"sql_query":"SELECT * FROM mz_unsafe.mz_sleep_forever"}}}
 ----
 200 OK
-{"jsonrpc":"2.0","id":61,"error":{"code":-32602,"message":"Query validation failed: Query references non-system tables: mz_unsafe.mz_sleep_forever. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
+{"jsonrpc":"2.0","id":61,"error":{"code":-32602,"message":"Query validation failed: Query references non-system objects: mz_unsafe.mz_sleep_forever. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.","data":{"error_type":"ValidationError"}}}
 
 # =============================================================================
 # Invalid ids

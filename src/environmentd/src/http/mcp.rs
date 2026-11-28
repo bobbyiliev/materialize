@@ -56,7 +56,7 @@ use mz_sql::session::vars::{APPLICATION_NAME, Var, VarInput};
 use mz_sql_parser::ast::display::{AstDisplay, escaped_string_literal};
 use mz_sql_parser::ast::visit_mut::{self, VisitMut};
 use mz_sql_parser::ast::{
-    CteBlock, Function, Ident, Raw, RawItemName, Statement, UnresolvedItemName,
+    CteBlock, Function, Ident, Raw, RawItemName, ShowStatement, Statement, UnresolvedItemName,
     UnresolvedSchemaName,
 };
 use serde::{Deserialize, Serialize};
@@ -2272,6 +2272,15 @@ fn bind_system_catalog_query(
         })?;
     let stmt = &mut stmts[0].ast;
 
+    // The binder does not visit type names, so a user type would pass. The
+    // planner refuses this statement for system types.
+    if matches!(stmt, Statement::Show(ShowStatement::ShowCreateType(_))) {
+        return Err(McpRequestError::QueryValidationFailed(
+            "SHOW CREATE TYPE is not supported: system types have no definition to show."
+                .to_string(),
+        ));
+    }
+
     let mut binder = SystemRelationBinder {
         resolve: &resolve,
         cte_names: BTreeSet::new(),
@@ -2284,19 +2293,19 @@ fn bind_system_catalog_query(
 
     if !binder.id_references.is_empty() {
         return Err(McpRequestError::QueryValidationFailed(format!(
-            "Query references objects by ID: {}. Reference system catalog tables by name.",
+            "Query references objects by ID: {}. Reference system catalog objects by name.",
             binder.id_references.join(", ")
         )));
     }
     if !binder.rejected.is_empty() {
         return Err(McpRequestError::QueryValidationFailed(format!(
-            "Query references non-system tables: {}. Only system catalog tables (mz_*, pg_catalog, information_schema) are allowed.",
+            "Query references non-system objects: {}. Only system catalog objects (mz_*, pg_catalog, information_schema) are allowed.",
             binder.rejected.join(", ")
         )));
     }
     if !binder.unknown.is_empty() {
         return Err(McpRequestError::QueryValidationFailed(format!(
-            "Query references unknown system catalog tables: {}. Check the name and its schema.",
+            "Query references unknown system catalog objects: {}. Check the name and its schema.",
             binder.unknown.join(", ")
         )));
     }
@@ -2405,9 +2414,18 @@ impl<'ast, F: Fn(&str, &str) -> Option<String>> VisitMut<'ast, Raw>
         }
     }
 
+    // A user can create a schema named `information_schema`, which has no
+    // reserved prefix, and it wins over the system one in name resolution
+    // (`CatalogState::resolve_schema`). Item names in it bind by ID, but a
+    // schema name has no ID form, so it is rejected here.
     fn visit_schema_name_mut(&mut self, name: &'ast mut UnresolvedSchemaName) {
         let parts: Vec<&str> = name.0.iter().map(|ident| ident.as_str()).collect();
-        if !matches!(parts.as_slice(), [schema] | [_, schema] if is_system_schema(schema)) {
+        let allowed = matches!(
+            parts.as_slice(),
+            [schema] | [_, schema]
+                if is_system_schema(schema) && *schema != namespaces::INFORMATION_SCHEMA
+        );
+        if !allowed {
             self.rejected.push(name.to_ast_string_simple());
         }
     }
@@ -3001,7 +3019,6 @@ mod tests {
 
     #[mz_ore::test]
     fn test_validate_system_catalog_query_allows_show() {
-        // SHOW queries don't reference tables in the AST but are safe read-only ops
         assert!(
             bind_with_stub_catalog("SHOW TABLES FROM mz_internal").is_ok(),
             "SHOW TABLES FROM mz_internal should be allowed"
@@ -3143,6 +3160,9 @@ mod tests {
             r#"SELECT * FROM "MZ_TABLES""#,
             "SHOW TABLES WHERE name IN (SELECT name FROM public.t)",
             "SELECT * FROM [u1 AS mz_catalog.mz_tables]",
+            // A user schema can take this name.
+            "SHOW VIEWS FROM information_schema",
+            "SHOW OBJECTS FROM materialize.information_schema",
         ] {
             assert!(
                 bind_with_stub_catalog(sql).is_err(),
@@ -3156,13 +3176,39 @@ mod tests {
         for (sql, message) in [
             (
                 "SELECT * FROM mz_catalog.mz_missing",
-                "unknown system catalog tables",
+                "unknown system catalog objects",
             ),
-            ("SELECT * FROM mz_missing", "unknown system catalog tables"),
-            ("SELECT * FROM user_table", "non-system tables"),
+            ("SELECT * FROM mz_missing", "unknown system catalog objects"),
+            ("SELECT * FROM user_table", "non-system objects"),
         ] {
             let err = bind_with_stub_catalog(sql).expect_err(sql).to_string();
             assert!(err.contains(message), "{sql}: {err}");
+        }
+    }
+
+    #[mz_ore::test]
+    fn test_bind_system_catalog_query_checks_function_fields() {
+        for sql in [
+            "SELECT max((SELECT a FROM materialize.public.t)) FROM mz_tables",
+            "SELECT count(*) FILTER (WHERE EXISTS (SELECT 1 FROM materialize.public.t)) \
+             FROM mz_tables",
+            "SELECT count(*) OVER (ORDER BY (SELECT a FROM materialize.public.t)) FROM mz_tables",
+        ] {
+            let err = bind_with_stub_catalog(sql).expect_err(sql).to_string();
+            assert!(err.contains("materialize.public.t"), "{sql}: {err}");
+        }
+    }
+
+    #[mz_ore::test]
+    fn test_bind_system_catalog_query_rejects_show_create_type() {
+        for sql in [
+            "SHOW CREATE TYPE public.mytype",
+            "SHOW CREATE TYPE [u6 AS materialize.public.mytype]",
+        ] {
+            assert!(
+                bind_with_stub_catalog(sql).is_err(),
+                "{sql} should be rejected"
+            );
         }
     }
 
